@@ -1,44 +1,35 @@
-name: Build and Deploy to S3
+name: Deploy Java App to Elastic Beanstalk
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v2
     - name: Set up JDK
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v2
       with:
         java-version: '21'
         distribution: 'adopt'
     - name: Build with Maven
       run: mvn clean package
-    - name: Zip the application
-      run: |
-        mkdir -p deployment
-        cp target/*.jar deployment/
-        cp -r .ebextensions deployment/ || true  # Copy Elastic Beanstalk config if exists
-        cp Procfile deployment/ || true  # Copy Procfile if exists
-        cd deployment
-        zip -r ../todo-app.zip .
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
+      uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-1
-    - name: Upload to S3
+    - name: Upload JAR to S3
+      run: aws s3 cp target/demo-0.0.1-SNAPSHOT.jar s3://lap-application-week3/demo-0.0.1-SNAPSHOT.jar
+    - name: Deploy to Elastic Beanstalk
       run: |
-        aws s3 cp todo-app.zip s3://lap-application-week3/demo-0.0.1-SNAPSHOT.jar-${{ github.sha }}.zip
-        echo "S3 URL: s3://lap-application-week3/demo-0.0.1-SNAPSHOT.jar-${{ github.sha }}.zip"
-
-
-
-
-
-
-
-
-
-
+        aws elasticbeanstalk create-application-version \
+          --application-name simple-job \
+          --version-label ${{ github.sha }} \
+          --source-bundle S3Bucket="lap-application-week3 ",S3Key="demo-0.0.1-SNAPSHOT.jar"
+        aws elasticbeanstalk update-environment \
+          --environment-name Simple-job-env \
+          --version-label ${{ github.sha }}
